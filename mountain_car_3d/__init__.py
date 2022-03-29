@@ -6,13 +6,6 @@ from gym.envs.registration import register
 register(
     id='MountainCarContinuous3D-v0',
     entry_point='mountain_car_3d.envs:Continuous_MountainCar3DEnv',
-    max_episode_steps=1000,
+    max_episode_steps=999,
     reward_threshold=90.0,
-)
-
-register(
-    id="MountainCar3D-v0",
-    entry_point="mountain_car_3d.envs:MountainCar3DEnv",
-    max_episode_steps=200,
-    reward_threshold=-110.0,
 )

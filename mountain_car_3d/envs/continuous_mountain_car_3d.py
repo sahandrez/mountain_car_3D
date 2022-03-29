@@ -1,5 +1,7 @@
 """
-@author: Sahand Rezaei-Shoshtari
+@author: Sahand Rezaei-Shoshtari, Olivier Sigaud
+
+Extension of OpenAI Gym continuous mountain car to 3D.
 
 A merge between two sources:
 
@@ -100,8 +102,10 @@ class Continuous_MountainCar3DEnv(gym.Env):
     def __init__(self, goal_velocity=0):
         self.min_action = -1.0
         self.max_action = 1.0
-        self.min_position = -1.2
-        self.max_position = 0.6
+        self.min_position_x = -1.2
+        self.max_position_x = 0.6
+        self.min_position_y = -1.0
+        self.max_position_y = 1.0
         self.max_speed = 0.07
         self.goal_position = (
             0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
@@ -110,10 +114,12 @@ class Continuous_MountainCar3DEnv(gym.Env):
         self.power = 0.0015
 
         self.low_state = np.array(
-            [self.min_position, -self.max_speed], dtype=np.float32
+            [self.min_position_x, self.min_position_y, -self.max_speed, -self.max_speed],
+            dtype=np.float32
         )
         self.high_state = np.array(
-            [self.max_position, self.max_speed], dtype=np.float32
+            [self.max_position_x, self.max_position_y, self.max_speed, self.max_speed],
+            dtype=np.float32
         )
 
         self.screen = None
@@ -121,7 +127,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
         self.isopen = True
 
         self.action_space = spaces.Box(
-            low=self.min_action, high=self.max_action, shape=(1,), dtype=np.float32
+            low=self.min_action, high=self.max_action, shape=(2,), dtype=np.float32
         )
         self.observation_space = spaces.Box(
             low=self.low_state, high=self.high_state, dtype=np.float32
@@ -129,32 +135,53 @@ class Continuous_MountainCar3DEnv(gym.Env):
 
     def step(self, action):
 
-        position = self.state[0]
-        velocity = self.state[1]
-        force = min(max(action[0], self.min_action), self.max_action)
+        position_x = self.state[0]
+        position_y = self.state[1]
+        velocity_x = self.state[2]
+        velocity_y = self.state[3]
+        force_x = min(max(action[0], self.min_action), self.max_action)
+        force_y = min(max(action[1], self.min_action), self.max_action)
 
-        velocity += force * self.power - 0.0025 * math.cos(3 * position)
-        if velocity > self.max_speed:
-            velocity = self.max_speed
-        if velocity < -self.max_speed:
-            velocity = -self.max_speed
-        position += velocity
-        if position > self.max_position:
-            position = self.max_position
-        if position < self.min_position:
-            position = self.min_position
-        if position == self.min_position and velocity < 0:
-            velocity = 0
+        # Update x component
+        velocity_x += force_x * self.power - 0.0025 * math.cos(3 * position_x)
+        if velocity_x > self.max_speed:
+            velocity_x = self.max_speed
+        if velocity_x < -self.max_speed:
+            velocity_x = -self.max_speed
+        position_x += velocity_x
+        if position_x > self.max_position_x:
+            position_x = self.max_position_x
+        if position_x < self.min_position_x:
+            position_x = self.min_position_x
+        if position_x == self.min_position_x and velocity_x < 0:
+            velocity_x = 0
+
+        # Update y component (no curve along Y-axis)
+        velocity_y += force_y * self.power
+        if velocity_y > self.max_speed:
+            velocity_y = self.max_speed
+        if velocity_y < -self.max_speed:
+            velocity_y = -self.max_speed
+        position_y += velocity_y
+        if position_y > self.max_position_y:
+            position_y = self.max_position_y
+        if position_y < self.min_position_y:
+            position_y = self.min_position_y
+        if position_y == self.min_position_y and velocity_y < 0:
+            velocity_y = 0
+        if position_y == self.max_position_y and velocity_y > 0:
+            velocity_y = 0
 
         # Convert a possible numpy bool to a Python bool.
-        done = bool(position >= self.goal_position and velocity >= self.goal_velocity)
+        # Goal is defined only on the X-axis
+        done = bool(position_x >= self.goal_position and velocity_x >= self.goal_velocity)
 
         reward = 0
         if done:
             reward = 100.0
         reward -= math.pow(action[0], 2) * 0.1
 
-        self.state = np.array([position, velocity], dtype=np.float32)
+        self.state = np.array([position_x, position_y, velocity_x, velocity_y], dtype=np.float32)
         return self.state, reward, done, {}
 
     def reset(
@@ -165,7 +192,12 @@ class Continuous_MountainCar3DEnv(gym.Env):
         options: Optional[dict] = None
     ):
         super().reset(seed=seed)
-        self.state = np.array([self.np_random.uniform(low=-0.6, high=-0.4), 0])
+        self.state = np.array([
+            self.np_random.uniform(low=-0.6, high=-0.4),
+            self.np_random.uniform(low=-0.5, high=0.5),
+            0,
+            0,
+        ])
         if not return_info:
             return np.array(self.state, dtype=np.float32)
         else:
@@ -175,10 +207,13 @@ class Continuous_MountainCar3DEnv(gym.Env):
         return np.sin(3 * xs) * 0.45 + 0.55
 
     def render(self, mode="human"):
+        """
+        The rendering is the original 2D render of OpenAI Gym.
+        """
         screen_width = 600
         screen_height = 400
 
-        world_width = self.max_position - self.min_position
+        world_width = self.max_position_x - self.min_position_x
         scale = screen_width / world_width
         carwidth = 40
         carheight = 20
@@ -194,9 +229,9 @@ class Continuous_MountainCar3DEnv(gym.Env):
 
         pos = self.state[0]
 
-        xs = np.linspace(self.min_position, self.max_position, 100)
+        xs = np.linspace(self.min_position_x, self.max_position_x, 100)
         ys = self._height(xs)
-        xys = list(zip((xs - self.min_position) * scale, ys * scale))
+        xys = list(zip((xs - self.min_position_x) * scale, ys * scale))
 
         pygame.draw.aalines(self.surf, points=xys, closed=False, color=(0, 0, 0))
 
@@ -208,7 +243,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
             c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * pos))
             coords.append(
                 (
-                    c[0] + (pos - self.min_position) * scale,
+                    c[0] + (pos - self.min_position_x) * scale,
                     c[1] + clearance + self._height(pos) * scale,
                 )
             )
@@ -219,7 +254,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
         for c in [(carwidth / 4, 0), (-carwidth / 4, 0)]:
             c = pygame.math.Vector2(c).rotate_rad(math.cos(3 * pos))
             wheel = (
-                int(c[0] + (pos - self.min_position) * scale),
+                int(c[0] + (pos - self.min_position_x) * scale),
                 int(c[1] + clearance + self._height(pos) * scale),
             )
 
@@ -230,7 +265,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
                 self.surf, wheel[0], wheel[1], int(carheight / 2.5), (128, 128, 128)
             )
 
-        flagx = int((self.goal_position - self.min_position) * scale)
+        flagx = int((self.goal_position - self.min_position_x) * scale)
         flagy1 = int(self._height(self.goal_position) * scale)
         flagy2 = flagy1 + 50
         gfxdraw.vline(self.surf, flagx, flagy1, flagy2, (0, 0, 0))
