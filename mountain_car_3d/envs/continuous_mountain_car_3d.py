@@ -99,19 +99,24 @@ class Continuous_MountainCar3DEnv(gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
-    def __init__(self, goal_velocity=0):
+    def __init__(self, goal_velocity=0, curve_along_y=False):
         self.min_action = -1.0
         self.max_action = 1.0
         self.min_position_x = -1.2
         self.max_position_x = 0.6
-        self.min_position_y = -1.0
-        self.max_position_y = 1.0
+        self.min_position_y = -1.2
+        self.max_position_y = 0.6
         self.max_speed = 0.07
+        # Goal is based on the height
         self.goal_position = (
             0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
         )
+        self.goal_height = (
+            self._height(self.goal_position)
+        )
         self.goal_velocity = goal_velocity
         self.power = 0.0015
+        self.curve_along_y = curve_along_y
 
         self.low_state = np.array(
             [self.min_position_x, self.min_position_y, -self.max_speed, -self.max_speed],
@@ -157,7 +162,10 @@ class Continuous_MountainCar3DEnv(gym.Env):
             velocity_x = 0
 
         # Update y component (no curve along Y-axis)
-        velocity_y += force_y * self.power
+        if self.curve_along_y:
+            velocity_y += force_y * self.power - 0.0025 * math.cos(3 * position_y)
+        else:
+            velocity_y += force_y * self.power
         if velocity_y > self.max_speed:
             velocity_y = self.max_speed
         if velocity_y < -self.max_speed:
@@ -173,8 +181,10 @@ class Continuous_MountainCar3DEnv(gym.Env):
             velocity_y = 0
 
         # Convert a possible numpy bool to a Python bool.
-        # Goal is defined only on the X-axis
-        done = bool(position_x >= self.goal_position and velocity_x >= self.goal_velocity)
+        # Goal is defined based on the height
+        done = bool(self._height(position_x) >= self.goal_height and
+                    velocity_x >= self.goal_velocity and
+                    velocity_y >= self.goal_velocity)
 
         reward = 0
         if done:
@@ -194,7 +204,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
         super().reset(seed=seed)
         self.state = np.array([
             self.np_random.uniform(low=-0.6, high=-0.4),
-            self.np_random.uniform(low=-0.5, high=0.5),
+            self.np_random.uniform(low=-0.6, high=-0.4),
             0,
             0,
         ])
@@ -266,7 +276,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
             )
 
         flagx = int((self.goal_position - self.min_position_x) * scale)
-        flagy1 = int(self._height(self.goal_position) * scale)
+        flagy1 = int(self.goal_height * scale)
         flagy2 = flagy1 + 50
         gfxdraw.vline(self.surf, flagx, flagy1, flagy2, (0, 0, 0))
 
