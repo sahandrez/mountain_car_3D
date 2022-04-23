@@ -100,23 +100,31 @@ class Continuous_MountainCar3DEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     def __init__(self, goal_velocity=0, curve_along_y=False):
+        self.curve_along_y = curve_along_y
         self.min_action = -1.0
         self.max_action = 1.0
-        self.min_position_x = -1.2
-        self.max_position_x = 0.6
         self.min_position_y = -1.2
-        self.max_position_y = 0.6
+        self.max_position_y = 1.2
+        if curve_along_y:
+            self.min_position_x = -1.2
+            self.max_position_x = 1.2
+            self.goal_position = (
+                1
+            )
+        else:
+            self.min_position_x = -1.2
+            self.max_position_x = 0.6
+            self.goal_position = (
+                0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
+            )
         self.max_speed = 0.07
         # Goal is based on the height
-        self.goal_position = (
-            0.45  # was 0.5 in gym, 0.45 in Arnaud de Broissia's version
-        )
+
         self.goal_height = (
-            self._height(self.goal_position)
+            self._height(self.goal_position, 0)
         )
         self.goal_velocity = goal_velocity
         self.power = 0.0015
-        self.curve_along_y = curve_along_y
 
         self.low_state = np.array(
             [self.min_position_x, self.min_position_y, -self.max_speed, -self.max_speed],
@@ -182,7 +190,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
 
         # Convert a possible numpy bool to a Python bool.
         # Goal is defined based on the height
-        done = bool(self._height(position_x) >= self.goal_height and
+        done = bool(self._height(position_x, position_y) >= self.goal_height and
                     velocity_x >= self.goal_velocity and
                     velocity_y >= self.goal_velocity)
 
@@ -213,8 +221,11 @@ class Continuous_MountainCar3DEnv(gym.Env):
         else:
             return np.array(self.state, dtype=np.float32), {}
 
-    def _height(self, xs):
-        return np.sin(3 * xs) * 0.45 + 0.55
+    def _height(self, xs, ys):
+        if self.curve_along_y:
+            return np.sin(3 * np.sqrt(xs**2 + ys**2) - math.pi / 2) * 0.45 + 0.55
+        else:
+            return np.sin(3 * xs) * 0.45 + 0.55
 
     def render(self, mode="human"):
         """
