@@ -10,3 +10,5 @@ plots/
 curves/
 exp*/
 rliable_data/
+*.png
+*.pdf
