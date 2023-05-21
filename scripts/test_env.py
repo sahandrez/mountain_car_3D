@@ -10,6 +10,6 @@ env.reset()
 
 for _ in range(1000):
     a = env.action_space.sample()
-    s, r, d, _ = env.step(a)
+    s, r, d, _, _ = env.step(a)
     print(f"Action: {a}, State: {s}")
 env.close()
