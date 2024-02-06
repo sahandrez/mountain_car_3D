@@ -200,7 +200,7 @@ class Continuous_MountainCar3DEnv(gym.Env):
         reward -= math.pow(action[0], 2) * 0.1
 
         self.state = np.array([position_x, position_y, velocity_x, velocity_y], dtype=np.float32)
-        return self.state, reward, done, False, {}
+        return self.state, reward, done, {}
 
     def reset(
         self,

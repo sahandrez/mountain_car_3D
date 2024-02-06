@@ -12,7 +12,7 @@ setup(
     name='mountain_car_3d',
     py_modules=['mountain_car_3d'],
     install_requires=[
-        'gym==0.26.2',
+        'gym==0.23.1',
         'numpy',
         'opencv-python',
     ],
